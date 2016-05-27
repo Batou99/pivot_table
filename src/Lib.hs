@@ -99,12 +99,14 @@ pivotTable xHeaders yHeaders values =
 
 threatTypeImpactLevelPT :: [Disruption] -> PivotTable
 threatTypeImpactLevelPT disruptions =
-  pivotTable impactLevels threatTypes values
+  PivotTable impactLevels rowLines
   where
     list = threatTypeImpactLevelList disruptions
     dimX = length impactLevels
     dimY = length threatTypes
     Right values = reshape dimX dimY list
+    stringValues = map (map show) values
+    rowLines = zipWith (:) threatTypes stringValues
 
 
 instance Show PivotTable where
