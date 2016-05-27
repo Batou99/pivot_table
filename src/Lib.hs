@@ -89,24 +89,20 @@ reshape xSize ySize values =
         reshaped_data = [ getRow xSize row values | row <- [1..ySize] ]
 
 
-pivotTable :: Show a => [String] -> [String] -> [[a]] -> PivotTable
-pivotTable xHeaders yHeaders values =
+pivotTable :: [String] -> [String] -> AggregateFunction -> [Disruption] -> PivotTable
+pivotTable xHeaders yHeaders aggregateFunction disruptions =
   PivotTable xHeaders rowLines
   where
+    list = aggregateFunction disruptions
+    dimX = length impactLevels
+    dimY = length threatTypes
+    Right values = reshape dimX dimY list
     stringValues = map (map show) values
     rowLines = zipWith (:) yHeaders stringValues
 
 
 threatTypeImpactLevelPT :: [Disruption] -> PivotTable
-threatTypeImpactLevelPT disruptions =
-  PivotTable impactLevels rowLines
-  where
-    list = threatTypeImpactLevelList disruptions
-    dimX = length impactLevels
-    dimY = length threatTypes
-    Right values = reshape dimX dimY list
-    stringValues = map (map show) values
-    rowLines = zipWith (:) threatTypes stringValues
+threatTypeImpactLevelPT = pivotTable impactLevels threatTypes threatTypeImpactLevelList
 
 
 instance Show PivotTable where
