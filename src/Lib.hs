@@ -20,9 +20,6 @@ threatTypes = [
    "Firearms"
    ]
 
-threatTypesWithTotals :: Headers
-threatTypesWithTotals = threatTypes ++ ["Total"]
-
 
 impactLevels :: Headers
 impactLevels = [
@@ -31,10 +28,6 @@ impactLevels = [
   "Minor",
   "Negative"
   ]
-
-
-impactLevelsWithTotals :: Headers
-impactLevelsWithTotals = impactLevels ++ ["Total"]
 
 
 disruptions :: [Disruption]
@@ -72,16 +65,7 @@ count x = fromIntegral(length x) :: Int
 -- PIVOTS
 pivotableList :: [DisruptionPredicate] -> [DisruptionPredicate] -> Reducer -> [Disruption] -> [Int]
 pivotableList xPredicates yPredicates reducer disruptions =
-  [reducer $ filter (\x -> xp x && yp x) disruptions | xp <- xPredicates, yp <- yPredicates ]
-
-
-threatTypeImpactLevelList :: AggregateFunction
-threatTypeImpactLevelList = pivotableList byThreatType byImpactLevel count
-
-threatTypeWithTotalsImpactLevelList :: AggregateFunction
-threatTypeWithTotalsImpactLevelList = pivotableList (byThreatType ++ byAny) byImpactLevel count
-
-threatTypeImpactLevelWithTotalsList = pivotableList byThreatType (byImpactLevel ++ byAny) count
+  [reducer $ filter (\x -> xp x && yp x) disruptions | yp <- yPredicates, xp <- xPredicates  ]
 
 
 -- VIEWS
@@ -101,7 +85,7 @@ reshape xSize ySize values =
     padded_values = values ++ zeros
 
 
-pivotTable :: [String] -> [String] -> AggregateFunction -> [Disruption] -> PivotTable
+pivotTable :: Headers -> Headers -> AggregateFunction -> [Disruption] -> PivotTable
 pivotTable xHeaders yHeaders aggregateFunction disruptions =
   PivotTable xHeaders rowLines
   where
@@ -113,14 +97,25 @@ pivotTable xHeaders yHeaders aggregateFunction disruptions =
     rowLines = zipWith (:) yHeaders stringValues
 
 
+generalPivotTable :: Reducer -> Headers -> [DisruptionPredicate] -> Headers -> [DisruptionPredicate] -> [Disruption] -> PivotTable
+generalPivotTable reducer xHeaders xPredicates yHeaders yPredicates = pivotTable xHeaders yHeaders $ pivotableList xPredicates yPredicates reducer
+
+
+countPT = generalPivotTable count
+
+
 threatTypeImpactLevelPT :: [Disruption] -> PivotTable
-threatTypeImpactLevelPT = pivotTable impactLevels threatTypes threatTypeImpactLevelList
+threatTypeImpactLevelPT = countPT impactLevels byImpactLevel threatTypes byThreatType
 
 
 threatTypeWithTotalsImpactLevelPT :: [Disruption] -> PivotTable
-threatTypeWithTotalsImpactLevelPT = pivotTable impactLevels threatTypesWithTotals threatTypeWithTotalsImpactLevelList
+threatTypeWithTotalsImpactLevelPT = 
+  countPT impactLevels byImpactLevel (threatTypes ++ ["Total"]) (byThreatType ++ byAny)
 
-threatTypeImpactLevelWithTotalsPT = pivotTable impactLevelsWithTotals threatTypes threatTypeImpactLevelWithTotalsList
+
+threatTypeImpactLevelWithTotalsPT :: [Disruption] -> PivotTable
+threatTypeImpactLevelWithTotalsPT = 
+  countPT (impactLevels ++ ["Total"]) (byImpactLevel ++ byAny) threatTypes byThreatType
 
 
 instance Show PivotTable where
