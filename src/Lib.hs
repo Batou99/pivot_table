@@ -1,13 +1,14 @@
 module Lib where
 
 import Data.List
+import Text.PrettyPrint.Boxes
 
 type Headers = [String]
 data Disruption = Disruption { date :: String, threatType :: String, impactLevel :: String } deriving (Show)
 type DisruptionPredicate = Disruption -> Bool
 type Reducer = [Disruption] -> Int
 type AggregateFunction = [Disruption] -> [Int]
-data PivotTable = PivotTable { headers :: [String], rows :: [[String]] }
+data PivotTable = PivotTable { headers :: Headers, rows :: [[String]] }
 
 
 -- DATA
@@ -120,7 +121,7 @@ threatTypeImpactLevelWithTotalsPT =
 
 instance Show PivotTable where
   show (PivotTable headers rows) =
-    headersString ++ "\n" ++ rowsString
+    render $ hsep 2 left (map (vcat left . map text) allData)
     where
-      headersString = show $ "**" : headers
-      rowsString = intercalate "\n" $ map show rows
+      paddedHeaders = "**" : headers
+      allData = transpose (paddedHeaders : rows)
