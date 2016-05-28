@@ -33,6 +33,10 @@ impactLevels = [
   ]
 
 
+impactLevelsWithTotals :: Headers
+impactLevelsWithTotals = impactLevels ++ ["Total"]
+
+
 disruptions :: [Disruption]
 disruptions = [
   Disruption "2001/1/1"
@@ -77,6 +81,8 @@ threatTypeImpactLevelList = pivotableList byThreatType byImpactLevel count
 threatTypeWithTotalsImpactLevelList :: AggregateFunction
 threatTypeWithTotalsImpactLevelList = pivotableList (byThreatType ++ byAny) byImpactLevel count
 
+threatTypeImpactLevelWithTotalsList = pivotableList byThreatType (byImpactLevel ++ byAny) count
+
 
 -- VIEWS
 getRow :: Int -> Int -> [a] -> [a]
@@ -113,6 +119,8 @@ threatTypeImpactLevelPT = pivotTable impactLevels threatTypes threatTypeImpactLe
 
 threatTypeWithTotalsImpactLevelPT :: [Disruption] -> PivotTable
 threatTypeWithTotalsImpactLevelPT = pivotTable impactLevels threatTypesWithTotals threatTypeWithTotalsImpactLevelList
+
+threatTypeImpactLevelWithTotalsPT = pivotTable impactLevelsWithTotals threatTypes threatTypeImpactLevelWithTotalsList
 
 
 instance Show PivotTable where
