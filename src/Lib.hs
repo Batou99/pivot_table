@@ -2,9 +2,8 @@ module Lib where
 
 import Data.List
 
-type ThreatType = String
-type ImpactLevel = String
-data Disruption = Disruption { date :: String, threatType :: ThreatType, impactLevel :: ImpactLevel } deriving (Show)
+type Headers = [String]
+data Disruption = Disruption { date :: String, threatType :: String, impactLevel :: String } deriving (Show)
 type DisruptionPredicate = Disruption -> Bool
 type Reducer = [Disruption] -> Int
 type AggregateFunction = [Disruption] -> [Int]
@@ -12,7 +11,7 @@ data PivotTable = PivotTable { headers :: [String], rows :: [[String]] }
 
 
 -- DATA
-threatTypes :: [ThreatType]
+threatTypes :: Headers
 threatTypes = [
    "CSA/CSE",
    "Cyber crime",
@@ -21,10 +20,11 @@ threatTypes = [
    "Firearms"
    ]
 
-threatTypesSize = length threatTypes
-impactLevelsSize = length impactLevels
+threatTypesWithTotals :: Headers
+threatTypesWithTotals = threatTypes ++ ["Total"]
 
-impactLevels :: [ImpactLevel]
+
+impactLevels :: Headers
 impactLevels = [
   "Mayor",
   "Moderate",
@@ -39,6 +39,10 @@ disruptions = [
              (threatTypes !! mod tp threatTypesSize)
              (impactLevels !! mod il impactLevelsSize) | tp <- [0..], il <- [0..tp] 
   ]
+  where
+    impactLevelsSize = length impactLevels
+    threatTypesSize = length threatTypes
+
   
 
 -- PREDICATES
@@ -55,6 +59,7 @@ byImpactLevel =
 byAny :: [DisruptionPredicate]
 byAny = [const True]
 
+
 -- REDUCERS
 count :: Reducer
 count x = fromIntegral(length x) :: Int
@@ -69,6 +74,7 @@ pivotableList xPredicates yPredicates reducer disruptions =
 threatTypeImpactLevelList :: AggregateFunction
 threatTypeImpactLevelList = pivotableList byThreatType byImpactLevel count
 
+threatTypeWithTotalsImpactLevelList :: AggregateFunction
 threatTypeWithTotalsImpactLevelList = pivotableList (byThreatType ++ byAny) byImpactLevel count
 
 
@@ -80,13 +86,13 @@ getRow columnsPerRow rowNum values =
     valuesToDrop = (rowNum - 1) * columnsPerRow
 
 
-reshape :: Int -> Int -> [a] -> Either String [[a]]
+reshape :: Int -> Int -> [Int] -> [[Int]]
 reshape xSize ySize values =
-  if xSize * ySize /= length values
-     then Left "Dimensions do not match with data"
-     else Right reshaped_data
-  where 
-        reshaped_data = [ getRow xSize row values | row <- [1..ySize] ]
+  [ getRow xSize row padded_values | row <- [1..ySize] ]
+  where
+    total_elements = xSize * ySize
+    zeros = take total_elements [0,0..]
+    padded_values = values ++ zeros
 
 
 pivotTable :: [String] -> [String] -> AggregateFunction -> [Disruption] -> PivotTable
@@ -94,15 +100,19 @@ pivotTable xHeaders yHeaders aggregateFunction disruptions =
   PivotTable xHeaders rowLines
   where
     list = aggregateFunction disruptions
-    dimX = length impactLevels
-    dimY = length threatTypes
-    Right values = reshape dimX dimY list
+    dimX = length xHeaders
+    dimY = length yHeaders
+    values = reshape dimX dimY list
     stringValues = map (map show) values
     rowLines = zipWith (:) yHeaders stringValues
 
 
 threatTypeImpactLevelPT :: [Disruption] -> PivotTable
 threatTypeImpactLevelPT = pivotTable impactLevels threatTypes threatTypeImpactLevelList
+
+
+threatTypeWithTotalsImpactLevelPT :: [Disruption] -> PivotTable
+threatTypeWithTotalsImpactLevelPT = pivotTable impactLevels threatTypesWithTotals threatTypeWithTotalsImpactLevelList
 
 
 instance Show PivotTable where
