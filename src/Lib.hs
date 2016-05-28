@@ -3,60 +3,103 @@ module Lib where
 import Data.List
 import Text.PrettyPrint.Boxes
 
-type Headers = [String]
-data Disruption = Disruption { date :: String, threatType :: String, impactLevel :: String } deriving (Show)
+type Header = String
+data Dimension = Dimension [Header] [DisruptionPredicate]
+
+
+data Disruption = Disruption { date :: String, locationType :: String, ratingLevel :: String } deriving (Show)
 type DisruptionPredicate = Disruption -> Bool
 type Reducer = [Disruption] -> Int
 type AggregateFunction = [Disruption] -> [Int]
-data PivotTable = PivotTable { headers :: Headers, rows :: [[String]] }
+data PivotTable = PivotTable { headers :: [Header], rows :: [[String]] }
 
 
--- DATA
-threatTypes :: Headers
-threatTypes = [
-   "CSA/CSE",
-   "Cyber crime",
-   "Drugs",
-   "Economic Crime",
-   "Firearms"
-   ]
-
-
-impactLevels :: Headers
-impactLevels = [
-  "Mayor",
-  "Moderate",
-  "Minor",
-  "Negative"
-  ]
-
-
-disruptions :: [Disruption]
-disruptions = [
-  Disruption "2001/1/1"
-             (threatTypes !! mod tp threatTypesSize)
-             (impactLevels !! mod il impactLevelsSize) | tp <- [0..], il <- [0..tp] 
-  ]
-  where
-    impactLevelsSize = length impactLevels
-    threatTypesSize = length threatTypes
-
-  
-
--- PREDICATES
-byThreatType :: [DisruptionPredicate]
-byThreatType =
-  [\d -> threatType d == x | x <- threatTypes]
-
-
-byImpactLevel :: [DisruptionPredicate]
-byImpactLevel =
-  [\d -> impactLevel d == x | x <- impactLevels]
-
+-- DIMENSIONS
 
 byAny :: [DisruptionPredicate]
 byAny = [const True]
 
+
+byAnyOf :: [Header] -> [DisruptionPredicate]
+byAnyOf headers = [\d -> locationType d `elem` headers || ratingLevel d `elem` headers]
+
+
+spainLocations :: [Header]
+spainLocations = [
+  "Madrid",
+  "Barcelona",
+  "Valencia",
+  "Zaragoza",
+  "La coruña"
+  ]
+
+
+byFilter :: [Header] -> [DisruptionPredicate]
+byFilter headers =
+  [\d -> x `elem` [locationType d, ratingLevel d] | x <- headers]
+
+
+dimension :: [Header] -> Dimension
+dimension headers =
+  Dimension headers $ byFilter headers
+
+
+dimensionWithTotals :: [Header] -> Dimension
+dimensionWithTotals headers =
+  Dimension (headers ++ ["Total"]) (byFilter headers ++ byAnyOf headers)
+
+
+spainDimension :: Dimension
+spainDimension = dimension spainLocations
+
+
+europeDimension :: Dimension
+europeDimension = dimension europeLocations
+
+
+europeLocations :: [Header]
+europeLocations = [
+  "Berlin",
+  "Paris",
+  "London"
+  ]
+
+
+spainWithTotalsDimension :: Dimension
+spainWithTotalsDimension = dimensionWithTotals spainLocations
+
+
+europeWithTotalsDimension :: Dimension
+europeWithTotalsDimension = dimensionWithTotals europeLocations
+
+
+ratingLevels :: [Header]
+ratingLevels = [
+  "Alto",
+  "Medio",
+  "Bajo",
+  "Negativo"
+  ]
+
+
+ratingsDimension :: Dimension
+ratingsDimension = dimension ratingLevels
+
+
+ratingWithTotalsDimension :: Dimension
+ratingWithTotalsDimension = dimensionWithTotals ratingLevels
+
+
+disruptions :: [Header] -> [Disruption]
+disruptions locationTypes = [
+  Disruption "2001/1/1"
+             (locationTypes !! mod tp locationTypesSize)
+             (ratingLevels !! mod il ratingLevelsSize) | tp <- [0..], il <- [0..tp] 
+  ]
+  where
+    ratingLevelsSize = length ratingLevels
+    locationTypesSize = length locationTypes
+  
 
 -- REDUCERS
 count :: Reducer
@@ -86,8 +129,8 @@ reshape xSize ySize values =
     padded_values = values ++ zeros
 
 
-pivotTable :: Headers -> Headers -> AggregateFunction -> [Disruption] -> PivotTable
-pivotTable xHeaders yHeaders aggregateFunction disruptions =
+pivotTable :: Dimension -> Dimension -> AggregateFunction -> [Disruption] -> PivotTable
+pivotTable (Dimension xHeaders _) (Dimension yHeaders _) aggregateFunction disruptions =
   PivotTable xHeaders rowLines
   where
     list = aggregateFunction disruptions
@@ -98,25 +141,29 @@ pivotTable xHeaders yHeaders aggregateFunction disruptions =
     rowLines = zipWith (:) yHeaders stringValues
 
 
-generalPivotTable :: Reducer -> Headers -> [DisruptionPredicate] -> Headers -> [DisruptionPredicate] -> [Disruption] -> PivotTable
-generalPivotTable reducer xHeaders xPredicates yHeaders yPredicates = pivotTable xHeaders yHeaders $ pivotableList xPredicates yPredicates reducer
+generalPivotTable :: Reducer -> Dimension -> Dimension -> [Disruption] -> PivotTable
+generalPivotTable reducer xDimension yDimension =
+  pivotTable xDimension yDimension $ pivotableList xPredicates yPredicates reducer
+  where
+    Dimension _ xPredicates = xDimension
+    Dimension _ yPredicates = yDimension
 
 
+countPT :: Dimension -> Dimension -> [Disruption] -> PivotTable
 countPT = generalPivotTable count
 
 
-threatTypeImpactLevelPT :: [Disruption] -> PivotTable
-threatTypeImpactLevelPT = countPT impactLevels byImpactLevel threatTypes byThreatType
+spainByRatingLevelPT :: [Disruption] -> PivotTable
+spainByRatingLevelPT = countPT ratingsDimension spainDimension
 
 
-threatTypeWithTotalsImpactLevelPT :: [Disruption] -> PivotTable
-threatTypeWithTotalsImpactLevelPT = 
-  countPT impactLevels byImpactLevel (threatTypes ++ ["Total"]) (byThreatType ++ byAny)
+spainWithTotalsRatingLevelPT :: [Disruption] -> PivotTable
+spainWithTotalsRatingLevelPT = countPT ratingsDimension spainWithTotalsDimension
 
 
-threatTypeImpactLevelWithTotalsPT :: [Disruption] -> PivotTable
-threatTypeImpactLevelWithTotalsPT = 
-  countPT (impactLevels ++ ["Total"]) (byImpactLevel ++ byAny) threatTypes byThreatType
+spainWithTotalsRatingLevelWithTotalsPT :: [Disruption] -> PivotTable
+spainWithTotalsRatingLevelWithTotalsPT =
+  countPT ratingWithTotalsDimension spainWithTotalsDimension
 
 
 instance Show PivotTable where
