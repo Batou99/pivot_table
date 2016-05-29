@@ -16,7 +16,7 @@ type DisruptionPredicate = Disruption -> Bool
 type Reducer = [Disruption] -> Int
 type AggregateFunction = [Disruption] -> [Int]
 
-data Header = Header String | Total deriving (Show)
+data Header = Header String | Total
 data Disruption = 
   Disruption { date :: String, locationType :: String, ratingLevel :: String } deriving (Show)
 data PivotTable = PivotTable { dimX :: Dimension, dimY :: Dimension, contents :: [[Int]] }
@@ -25,10 +25,14 @@ instance Show PivotTable where
   show (PivotTable dimX dimY contents) =
     render $ hsep 2 left (map (vcat left . map text) allData)
     where
-      hStrings = "**" : map toString dimX
-      vStrings = map toString dimY
+      hStrings = "**" : map show dimX
+      vStrings = map show dimY
       rows = zipWith (:) vStrings $ (map . map) show contents
       allData = transpose (hStrings : rows)
+
+instance Show Header where
+  show (Header s) = s
+  show Total = "Total"
 
 
 -- DIMENSIONS
@@ -39,11 +43,6 @@ predicate Total = const True
 
 predicates :: Dimension -> [DisruptionPredicate]
 predicates = map predicate
-
-
-toString :: Header -> String
-toString (Header s) = s
-toString Total = "Total"
 
 
 spainDimension :: Dimension
