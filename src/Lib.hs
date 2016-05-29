@@ -25,7 +25,7 @@ instance Show PivotTable where
   show (PivotTable headers rows) =
     render $ hsep 2 left (map (vcat left . map text) allData)
     where
-      hStrings = extractStrings [] headers
+      hStrings = extractStrings headers
       paddedHeaders = "**" : hStrings
       allData = transpose (paddedHeaders : rows)
 
@@ -40,10 +40,13 @@ predicates :: Dimension -> [DisruptionPredicate]
 predicates = map predicate
 
 
-extractStrings :: [String] -> Dimension -> [String]
-extractStrings acc (Header x:xs) = extractStrings (acc ++ [x]) xs
-extractStrings acc (Total:xs) = extractStrings (acc ++ ["Total"]) xs
-extractStrings acc [] = acc
+extractStrings :: Dimension -> [String]
+extractStrings = map toString
+
+
+toString :: Header -> String
+toString (Header s) = s
+toString Total = "Total"
 
 
 spainDimension :: Dimension
@@ -156,7 +159,7 @@ pivotTable xDimension yDimension aggregateFunction disruptions =
     dimY = length yDimension
     values = reshape dimX dimY list
     stringValues = map (map show) values
-    yStrings = extractStrings [] yDimension
+    yStrings = extractStrings yDimension
     rowLines = zipWith (:) yStrings stringValues
 
 
