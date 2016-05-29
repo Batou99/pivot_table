@@ -4,7 +4,8 @@ module Lib (disruptions,
             spainByRatingLevelPT,
             spainWithTotalsDimension,
             spainWithTotalsRatingLevelPT,
-            spainWithTotalsRatingLevelWithTotalsPT
+            spainWithTotalsRatingLevelWithTotalsPT,
+            worldWithTotalsRatingLevelWithTotalsPT
             ) where
 
 import Data.List
@@ -12,13 +13,13 @@ import Text.PrettyPrint.Boxes
 
 --TYPES
 type Dimension = [Header]
-type RatingPredicate = Rating -> Bool
+type Predicate = Rating -> Bool
 type Reducer = [Rating] -> Int
 type AggregateFunction = [Rating] -> [Int]
 
-data Header = Header String | Total
+data Header = Header String | Total | SubTotal Predicate
 data Rating = Rating { date :: String, locationType :: String, level :: String } deriving (Show)
-data PivotTable = PivotTable { dimX :: Dimension, dimY :: Dimension, contents :: [[Int]] }
+data PivotTable = PivotTable { dimX :: Dimension, dimY :: Dimension, contents :: [[Int]] } 
 
 
 instance Show PivotTable where
@@ -33,16 +34,22 @@ instance Show PivotTable where
 instance Show Header where
   show (Header s) = s
   show Total = "Total"
+  show (SubTotal _) = "Subtotal"
 
 
 -- DIMENSIONS
-predicate :: Header -> RatingPredicate
+predicate :: Header -> Predicate
 predicate (Header name) = \d -> name `elem` [locationType d, level d]
 predicate Total = const True
+predicate (SubTotal predicate) = predicate
 
 
-predicates :: Dimension -> [RatingPredicate]
+predicates :: Dimension -> [Predicate]
 predicates = map predicate
+
+
+byAny :: [Header] -> Header
+byAny headers = SubTotal (\d -> or $ map ($ d) (predicates headers))
 
 
 spainDimension :: Dimension
@@ -69,6 +76,10 @@ spainWithTotalsDimension = spainDimension ++ [Total]
 
 europeWithTotalsDimension :: Dimension
 europeWithTotalsDimension = europeDimension ++ [Total]
+
+
+worldWithSubtotalsAndTotal :: Dimension
+worldWithSubtotalsAndTotal = spainDimension ++ [(byAny spainDimension)] ++ europeDimension ++ [(byAny europeDimension)] ++ [Total]
 
 
 ratingsDimension:: Dimension
@@ -113,6 +124,11 @@ spainWithTotalsRatingLevelPT = countPT ratingsDimension spainWithTotalsDimension
 spainWithTotalsRatingLevelWithTotalsPT :: [Rating] -> PivotTable
 spainWithTotalsRatingLevelWithTotalsPT =
   countPT ratingWithTotalsDimension spainWithTotalsDimension
+
+
+worldWithTotalsRatingLevelWithTotalsPT :: [Rating] -> PivotTable
+worldWithTotalsRatingLevelWithTotalsPT =
+  countPT ratingWithTotalsDimension worldWithSubtotalsAndTotal
 
 
 -- REDUCERS
