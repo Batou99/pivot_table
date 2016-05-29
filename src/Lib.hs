@@ -19,15 +19,16 @@ type AggregateFunction = [Disruption] -> [Int]
 data Header = Header String | Total deriving (Show)
 data Disruption = 
   Disruption { date :: String, locationType :: String, ratingLevel :: String } deriving (Show)
-data PivotTable = PivotTable { headers :: [Header], rows :: [[String]] }
+data PivotTable = PivotTable { dimX :: Dimension, dimY :: Dimension, contents :: [[Int]] }
 
 instance Show PivotTable where
-  show (PivotTable headers rows) =
+  show (PivotTable dimX dimY contents) =
     render $ hsep 2 left (map (vcat left . map text) allData)
     where
-      hStrings = extractStrings headers
-      paddedHeaders = "**" : hStrings
-      allData = transpose (paddedHeaders : rows)
+      hStrings = "**" : extractStrings dimX
+      vStrings = extractStrings dimY
+      rows = zipWith (:) vStrings $ (map . map) show contents
+      allData = transpose (hStrings : rows)
 
 
 -- DIMENSIONS
@@ -134,7 +135,7 @@ pivotableList xDimension yDimension reducer disruptions =
 
 
 -- VIEWS
-getRow :: Int -> Int -> [a] -> [a]
+getRow :: Int -> Int -> [Int] -> [Int]
 getRow columnsPerRow rowNum values =
   take columnsPerRow $ drop valuesToDrop values
   where
@@ -152,15 +153,12 @@ reshape xSize ySize values =
 
 pivotTable :: Dimension -> Dimension -> AggregateFunction -> [Disruption] -> PivotTable
 pivotTable xDimension yDimension aggregateFunction disruptions =
-  PivotTable xDimension rowLines
+  PivotTable xDimension yDimension values
   where
     list = aggregateFunction disruptions
     dimX = length xDimension
     dimY = length yDimension
     values = reshape dimX dimY list
-    stringValues = map (map show) values
-    yStrings = extractStrings yDimension
-    rowLines = zipWith (:) yStrings stringValues
 
 
 generalPivotTable :: Reducer -> Dimension -> Dimension -> [Disruption] -> PivotTable
