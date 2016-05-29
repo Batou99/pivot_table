@@ -1,31 +1,53 @@
-module Lib where
+module Lib (disruptions,
+            spainDimension,
+            europeDimension,
+            spainByRatingLevelPT,
+            spainWithTotalsDimension,
+            spainWithTotalsRatingLevelPT,
+            spainWithTotalsRatingLevelWithTotalsPT
+            ) where
 
 import Data.List
 import Text.PrettyPrint.Boxes
 
-type Header = String
-data Dimension = Dimension [Header] [DisruptionPredicate]
-
-
-data Disruption = Disruption { date :: String, locationType :: String, ratingLevel :: String } deriving (Show)
+--TYPES
+type Dimension = [Header]
 type DisruptionPredicate = Disruption -> Bool
 type Reducer = [Disruption] -> Int
 type AggregateFunction = [Disruption] -> [Int]
+
+data Header = Header String | Total deriving (Show)
+data Disruption = 
+  Disruption { date :: String, locationType :: String, ratingLevel :: String } deriving (Show)
 data PivotTable = PivotTable { headers :: [Header], rows :: [[String]] }
+
+instance Show PivotTable where
+  show (PivotTable headers rows) =
+    render $ hsep 2 left (map (vcat left . map text) allData)
+    where
+      hStrings = extractStrings [] headers
+      paddedHeaders = "**" : hStrings
+      allData = transpose (paddedHeaders : rows)
 
 
 -- DIMENSIONS
-
-byAny :: [DisruptionPredicate]
-byAny = [const True]
-
-
-byAnyOf :: [Header] -> [DisruptionPredicate]
-byAnyOf headers = [\d -> locationType d `elem` headers || ratingLevel d `elem` headers]
+predicate :: Header -> DisruptionPredicate
+predicate (Header name) = \d -> name `elem` [locationType d, ratingLevel d]
+predicate Total = const True
 
 
-spainLocations :: [Header]
-spainLocations = [
+predicates :: Dimension -> [DisruptionPredicate]
+predicates = map predicate
+
+
+extractStrings :: [String] -> Dimension -> [String]
+extractStrings acc (Header x:xs) = extractStrings (acc ++ [x]) xs
+extractStrings acc (Total:xs) = extractStrings (acc ++ ["Total"]) xs
+extractStrings acc [] = acc
+
+
+spainDimension :: Dimension
+spainDimension = map Header [
   "Madrid",
   "Barcelona",
   "Valencia",
@@ -34,31 +56,8 @@ spainLocations = [
   ]
 
 
-byFilter :: [Header] -> [DisruptionPredicate]
-byFilter headers =
-  [\d -> x `elem` [locationType d, ratingLevel d] | x <- headers]
-
-
-dimension :: [Header] -> Dimension
-dimension headers =
-  Dimension headers $ byFilter headers
-
-
-dimensionWithTotals :: [Header] -> Dimension
-dimensionWithTotals headers =
-  Dimension (headers ++ ["Total"]) (byFilter headers ++ byAnyOf headers)
-
-
-spainDimension :: Dimension
-spainDimension = dimension spainLocations
-
-
 europeDimension :: Dimension
-europeDimension = dimension europeLocations
-
-
-europeLocations :: [Header]
-europeLocations = [
+europeDimension = map Header [
   "Berlin",
   "Paris",
   "London"
@@ -66,15 +65,15 @@ europeLocations = [
 
 
 spainWithTotalsDimension :: Dimension
-spainWithTotalsDimension = dimensionWithTotals spainLocations
+spainWithTotalsDimension = spainDimension ++ [Total]
 
 
 europeWithTotalsDimension :: Dimension
-europeWithTotalsDimension = dimensionWithTotals europeLocations
+europeWithTotalsDimension = europeDimension ++ [Total]
 
 
-ratingLevels :: [Header]
-ratingLevels = [
+ratingsDimension:: Dimension
+ratingsDimension = map Header [
   "Alto",
   "Medio",
   "Bajo",
@@ -82,34 +81,53 @@ ratingLevels = [
   ]
 
 
-ratingsDimension :: Dimension
-ratingsDimension = dimension ratingLevels
-
-
 ratingWithTotalsDimension :: Dimension
-ratingWithTotalsDimension = dimensionWithTotals ratingLevels
+ratingWithTotalsDimension = ratingsDimension ++ [Total]
 
 
-disruptions :: [Header] -> [Disruption]
-disruptions locationTypes = [
-  Disruption "2001/1/1"
-             (locationTypes !! mod tp locationTypesSize)
-             (ratingLevels !! mod il ratingLevelsSize) | tp <- [0..], il <- [0..tp] 
+-- GENERATORS
+disruptions :: Dimension -> [Disruption]
+disruptions locationsDimension = [
+  disruptionGenerator 
+             (locationsDimension !! mod tp locationsDimensionSize)
+             (ratingsDimension !! mod il ratingsDimensionSize) | tp <- [0..], il <- [0..tp] 
   ]
   where
-    ratingLevelsSize = length ratingLevels
-    locationTypesSize = length locationTypes
+    ratingsDimensionSize = length ratingsDimension
+    locationsDimensionSize = length locationsDimension
   
+
+disruptionGenerator :: Header -> Header -> Disruption
+disruptionGenerator (Header location) (Header rating) =
+  Disruption "2001/1/1" location rating
+
+
+-- PIVOTS
+spainByRatingLevelPT :: [Disruption] -> PivotTable
+spainByRatingLevelPT = countPT ratingsDimension spainDimension
+
+
+spainWithTotalsRatingLevelPT :: [Disruption] -> PivotTable
+spainWithTotalsRatingLevelPT = countPT ratingsDimension spainWithTotalsDimension
+
+
+spainWithTotalsRatingLevelWithTotalsPT :: [Disruption] -> PivotTable
+spainWithTotalsRatingLevelWithTotalsPT =
+  countPT ratingWithTotalsDimension spainWithTotalsDimension
+
 
 -- REDUCERS
 count :: Reducer
 count x = fromIntegral(length x) :: Int
 
 
--- PIVOTS
-pivotableList :: [DisruptionPredicate] -> [DisruptionPredicate] -> Reducer -> [Disruption] -> [Int]
-pivotableList xPredicates yPredicates reducer disruptions =
+-- PRIVATE
+pivotableList :: Dimension -> Dimension -> Reducer -> [Disruption] -> [Int]
+pivotableList xDimension yDimension reducer disruptions =
   [reducer $ filter (\x -> xp x && yp x) disruptions | yp <- yPredicates, xp <- xPredicates  ]
+  where
+    xPredicates = predicates xDimension
+    yPredicates = predicates yDimension
 
 
 -- VIEWS
@@ -130,45 +148,22 @@ reshape xSize ySize values =
 
 
 pivotTable :: Dimension -> Dimension -> AggregateFunction -> [Disruption] -> PivotTable
-pivotTable (Dimension xHeaders _) (Dimension yHeaders _) aggregateFunction disruptions =
-  PivotTable xHeaders rowLines
+pivotTable xDimension yDimension aggregateFunction disruptions =
+  PivotTable xDimension rowLines
   where
     list = aggregateFunction disruptions
-    dimX = length xHeaders
-    dimY = length yHeaders
+    dimX = length xDimension
+    dimY = length yDimension
     values = reshape dimX dimY list
     stringValues = map (map show) values
-    rowLines = zipWith (:) yHeaders stringValues
+    yStrings = extractStrings [] yDimension
+    rowLines = zipWith (:) yStrings stringValues
 
 
 generalPivotTable :: Reducer -> Dimension -> Dimension -> [Disruption] -> PivotTable
 generalPivotTable reducer xDimension yDimension =
-  pivotTable xDimension yDimension $ pivotableList xPredicates yPredicates reducer
-  where
-    Dimension _ xPredicates = xDimension
-    Dimension _ yPredicates = yDimension
+  pivotTable xDimension yDimension $ pivotableList xDimension yDimension reducer
 
 
 countPT :: Dimension -> Dimension -> [Disruption] -> PivotTable
 countPT = generalPivotTable count
-
-
-spainByRatingLevelPT :: [Disruption] -> PivotTable
-spainByRatingLevelPT = countPT ratingsDimension spainDimension
-
-
-spainWithTotalsRatingLevelPT :: [Disruption] -> PivotTable
-spainWithTotalsRatingLevelPT = countPT ratingsDimension spainWithTotalsDimension
-
-
-spainWithTotalsRatingLevelWithTotalsPT :: [Disruption] -> PivotTable
-spainWithTotalsRatingLevelWithTotalsPT =
-  countPT ratingWithTotalsDimension spainWithTotalsDimension
-
-
-instance Show PivotTable where
-  show (PivotTable headers rows) =
-    render $ hsep 2 left (map (vcat left . map text) allData)
-    where
-      paddedHeaders = "**" : headers
-      allData = transpose (paddedHeaders : rows)

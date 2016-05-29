@@ -4,7 +4,7 @@ import Lib as L
 
 main :: IO ()
 main = do
-  let disruptions = take 12 $ L.disruptions spainLocations
+  let disruptions = take 12 $ L.disruptions L.spainDimension
   print $ spainByRatingLevelPT disruptions
   print $ spainWithTotalsRatingLevelPT disruptions
   print $ spainWithTotalsRatingLevelWithTotalsPT disruptions
