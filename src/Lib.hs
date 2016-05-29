@@ -12,13 +12,13 @@ import Text.PrettyPrint.Boxes
 
 --TYPES
 type Dimension = [Header]
-type DisruptionPredicate = Disruption -> Bool
-type Reducer = [Disruption] -> Int
-type AggregateFunction = [Disruption] -> [Int]
+type RatingPredicate = Rating -> Bool
+type Reducer = [Rating] -> Int
+type AggregateFunction = [Rating] -> [Int]
 
 data Header = Header String | Total
-data Disruption = 
-  Disruption { date :: String, locationType :: String, ratingLevel :: String } deriving (Show)
+data Rating = 
+  Rating { date :: String, locationType :: String, level :: String } deriving (Show)
 data PivotTable = PivotTable { dimX :: Dimension, dimY :: Dimension, contents :: [[Int]] }
 
 instance Show PivotTable where
@@ -36,12 +36,12 @@ instance Show Header where
 
 
 -- DIMENSIONS
-predicate :: Header -> DisruptionPredicate
-predicate (Header name) = \d -> name `elem` [locationType d, ratingLevel d]
+predicate :: Header -> RatingPredicate
+predicate (Header name) = \d -> name `elem` [locationType d, level d]
 predicate Total = const True
 
 
-predicates :: Dimension -> [DisruptionPredicate]
+predicates :: Dimension -> [RatingPredicate]
 predicates = map predicate
 
 
@@ -85,7 +85,7 @@ ratingWithTotalsDimension = ratingsDimension ++ [Total]
 
 
 -- GENERATORS
-disruptions :: Dimension -> [Disruption]
+disruptions :: Dimension -> [Rating]
 disruptions locationsDimension = [
   disruptionGenerator 
              (locationsDimension !! mod tp locationsDimensionSize)
@@ -96,21 +96,21 @@ disruptions locationsDimension = [
     locationsDimensionSize = length locationsDimension
   
 
-disruptionGenerator :: Header -> Header -> Disruption
+disruptionGenerator :: Header -> Header -> Rating
 disruptionGenerator (Header location) (Header rating) =
-  Disruption "2001/1/1" location rating
+  Rating "2001/1/1" location rating
 
 
 -- PIVOTS
-spainByRatingLevelPT :: [Disruption] -> PivotTable
+spainByRatingLevelPT :: [Rating] -> PivotTable
 spainByRatingLevelPT = countPT ratingsDimension spainDimension
 
 
-spainWithTotalsRatingLevelPT :: [Disruption] -> PivotTable
+spainWithTotalsRatingLevelPT :: [Rating] -> PivotTable
 spainWithTotalsRatingLevelPT = countPT ratingsDimension spainWithTotalsDimension
 
 
-spainWithTotalsRatingLevelWithTotalsPT :: [Disruption] -> PivotTable
+spainWithTotalsRatingLevelWithTotalsPT :: [Rating] -> PivotTable
 spainWithTotalsRatingLevelWithTotalsPT =
   countPT ratingWithTotalsDimension spainWithTotalsDimension
 
@@ -121,7 +121,7 @@ count x = fromIntegral(length x) :: Int
 
 
 -- PRIVATE
-pivotableList :: Dimension -> Dimension -> Reducer -> [Disruption] -> [Int]
+pivotableList :: Dimension -> Dimension -> Reducer -> [Rating] -> [Int]
 pivotableList xDimension yDimension reducer disruptions =
   [reducer $ filter (\x -> xp x && yp x) disruptions | yp <- yPredicates, xp <- xPredicates  ]
   where
@@ -146,7 +146,7 @@ reshape xSize ySize values =
     padded_values = values ++ zeros
 
 
-pivotTable :: Dimension -> Dimension -> AggregateFunction -> [Disruption] -> PivotTable
+pivotTable :: Dimension -> Dimension -> AggregateFunction -> [Rating] -> PivotTable
 pivotTable xDimension yDimension aggregateFunction disruptions =
   PivotTable xDimension yDimension values
   where
@@ -156,10 +156,10 @@ pivotTable xDimension yDimension aggregateFunction disruptions =
     values = reshape dimX dimY list
 
 
-generalPivotTable :: Reducer -> Dimension -> Dimension -> [Disruption] -> PivotTable
+generalPivotTable :: Reducer -> Dimension -> Dimension -> [Rating] -> PivotTable
 generalPivotTable reducer xDimension yDimension =
   pivotTable xDimension yDimension $ pivotableList xDimension yDimension reducer
 
 
-countPT :: Dimension -> Dimension -> [Disruption] -> PivotTable
+countPT :: Dimension -> Dimension -> [Rating] -> PivotTable
 countPT = generalPivotTable count
