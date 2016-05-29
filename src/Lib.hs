@@ -25,8 +25,8 @@ instance Show PivotTable where
   show (PivotTable dimX dimY contents) =
     render $ hsep 2 left (map (vcat left . map text) allData)
     where
-      hStrings = "**" : extractStrings dimX
-      vStrings = extractStrings dimY
+      hStrings = "**" : map toString dimX
+      vStrings = map toString dimY
       rows = zipWith (:) vStrings $ (map . map) show contents
       allData = transpose (hStrings : rows)
 
@@ -39,10 +39,6 @@ predicate Total = const True
 
 predicates :: Dimension -> [DisruptionPredicate]
 predicates = map predicate
-
-
-extractStrings :: Dimension -> [String]
-extractStrings = map toString
 
 
 toString :: Header -> String
