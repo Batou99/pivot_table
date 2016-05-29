@@ -17,9 +17,9 @@ type Reducer = [Rating] -> Int
 type AggregateFunction = [Rating] -> [Int]
 
 data Header = Header String | Total
-data Rating = 
-  Rating { date :: String, locationType :: String, level :: String } deriving (Show)
+data Rating = Rating { date :: String, locationType :: String, level :: String } deriving (Show)
 data PivotTable = PivotTable { dimX :: Dimension, dimY :: Dimension, contents :: [[Int]] }
+
 
 instance Show PivotTable where
   show (PivotTable dimX dimY contents) =
