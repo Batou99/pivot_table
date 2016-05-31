@@ -1,4 +1,4 @@
-module Lib (disruptions,
+module Lib (ratings,
             spainDimension,
             europeDimension,
             spainByRatingLevelPT,
@@ -30,6 +30,7 @@ instance Show PivotTable where
       vStrings = map show dimY
       rows = zipWith (:) vStrings $ (map . map) show contents
       allData = transpose (hStrings : rows)
+
 
 instance Show Header where
   show (Header s) = s
@@ -96,8 +97,8 @@ ratingWithTotalsDimension = ratingsDimension ++ [Total]
 
 
 -- GENERATORS
-disruptions :: Dimension -> [Rating]
-disruptions locationsDimension = [
+ratings :: Dimension -> [Rating]
+ratings locationsDimension = [
   disruptionGenerator 
              (locationsDimension !! mod tp locationsDimensionSize)
              (ratingsDimension !! mod il ratingsDimensionSize) | tp <- [0..], il <- [0..tp] 
@@ -138,8 +139,8 @@ count x = fromIntegral(length x) :: Int
 
 -- PRIVATE
 pivotableList :: Dimension -> Dimension -> Reducer -> [Rating] -> [Int]
-pivotableList xDimension yDimension reducer disruptions =
-  [reducer $ filter (\x -> xp x && yp x) disruptions | yp <- yPredicates, xp <- xPredicates  ]
+pivotableList xDimension yDimension reducer ratings =
+  [reducer $ filter (\x -> xp x && yp x) ratings | yp <- yPredicates, xp <- xPredicates  ]
   where
     xPredicates = predicates xDimension
     yPredicates = predicates yDimension
@@ -163,10 +164,10 @@ reshape xSize ySize values =
 
 
 pivotTable :: Dimension -> Dimension -> AggregateFunction -> [Rating] -> PivotTable
-pivotTable xDimension yDimension aggregateFunction disruptions =
+pivotTable xDimension yDimension aggregateFunction ratings =
   PivotTable xDimension yDimension values
   where
-    list = aggregateFunction disruptions
+    list = aggregateFunction ratings
     dimX = length xDimension
     dimY = length yDimension
     values = reshape dimX dimY list
